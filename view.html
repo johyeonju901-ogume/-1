@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>광고 이슈 기록</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
+<style>
+/* VOICE: 메모장처럼 가볍게. 날짜 + 한 줄.
+   IDEA: 업무 수첩의 날짜별 한 줄 메모.
+   PICTURE: 날짜가 왼쪽에 걸리고 한 줄 기록이 이어지는 목록.
+   COLOUR and TYPE: 흰 바탕, 딥시 #0a2540 글자, 스카이 #8fd3ff 포커스. Pretendard.
+   LAYOUT: 입력 한 줄 → 월 이동·검색 → 목록. */
+:root{color-scheme:light dark;--bg:light-dark(#fff,#0f1626);--ink:light-dark(#0a2540,#e6edf7);--mute:light-dark(#6a788c,#93a3bb);
+  --line:light-dark(#e8edf3,#24324b);--soft:light-dark(#f4f7fb,#172238);--sea:#0a2540;--sky:#8fd3ff;--pink:#e8456f}
+*{box-sizing:border-box;min-width:0}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.6 Pretendard,system-ui,-apple-system,"Apple SD Gothic Neo","Malgun Gothic",sans-serif}
+main{max-width:860px;margin:0 auto;padding:20px max(3vw,14px) 60px}
+h1{font-size:20px;margin:0 0 12px;font-weight:700;display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+h1 label{font-size:13px;font-weight:400;color:var(--mute);display:flex;align-items:center;gap:6px}
+h1 label input{width:96px;min-height:34px;padding:4px 8px;font-size:14px}
+.go{font-size:13px;font-weight:600;color:var(--ink);text-decoration:none;border:1px solid var(--line);border-radius:7px;padding:6px 10px}
+.go:hover{background:var(--soft)}
+.demo{font-size:12px;color:#8a6400;background:#fff4d6;padding:6px 10px;border-radius:6px;margin-bottom:10px}
+input,button{font:inherit;color:inherit}
+input{font-size:16px;background:var(--bg);border:1px solid var(--line);border-radius:7px;padding:8px 10px;min-height:42px;width:100%}
+:focus-visible{outline:2px solid var(--sky);outline-offset:1px}
+button{cursor:pointer;border-radius:7px;border:1px solid var(--line);background:var(--bg);min-height:42px;padding:8px 14px;white-space:nowrap}
+.primary{background:var(--sea);color:#fff;border-color:var(--sea);font-weight:600}
+.add{display:grid;grid-template-columns:150px minmax(0,1fr) auto auto;gap:8px}
+.add #cancel[hidden]{display:none}
+.msg{font-size:12px;color:var(--mute);min-height:18px;margin:3px 2px 0}
+.bar{display:flex;gap:6px;align-items:center;margin:14px 0 6px;flex-wrap:wrap}
+.bar b{font-size:16px;min-width:84px;text-align:center}
+.bar .nav{min-width:38px;padding:6px;min-height:38px}
+.bar input{flex:1 1 160px;width:auto;min-height:38px}
+.bar span{font-size:12px;color:var(--mute)}
+ul{list-style:none;margin:0;padding:0;border-top:1px solid var(--ink)}
+li{display:grid;grid-template-columns:78px minmax(0,1fr) auto;gap:4px 12px;padding:9px 4px;border-bottom:1px solid var(--line);align-items:baseline}
+li.cont{border-top:0}li.cont .d{visibility:hidden}
+li.first:not(:first-child){border-top:1px solid color-mix(in srgb,var(--ink) 25%,transparent)}
+li:hover{background:var(--soft)}
+.d{font-weight:700;white-space:nowrap}.d small{font-weight:400;color:var(--mute);margin-left:3px;font-size:12px}
+.t{white-space:pre-wrap;overflow-wrap:anywhere}
+.t em{font-style:normal;color:var(--mute);font-size:12px;margin-left:8px;white-space:nowrap}
+.x{opacity:.0;white-space:nowrap}li:hover .x,li:focus-within .x,.x:has(.warn){opacity:1}
+.sm{min-height:28px;padding:2px 7px;font-size:12px;border-color:transparent;background:none;color:var(--mute)}
+.sm.warn{color:var(--pink);border-color:var(--pink)}
+li.new{animation:pop 1.2s ease}@keyframes pop{from{background:color-mix(in srgb,var(--sky) 45%,transparent)}}
+@media(prefers-reduced-motion:reduce){li.new{animation:none}}
+li.empty{display:block;text-align:center;color:var(--mute);padding:30px}
+.gate{max-width:340px;margin:12vh auto;padding:22px;border:1px solid var(--line);border-radius:12px;display:grid;gap:10px}
+.gate h2{margin:0;font-size:19px}.gate p{margin:0;color:var(--mute);font-size:13px}.err{color:var(--pink);font-size:13px;min-height:18px}
+@media(hover:none){.x{opacity:1}}
+@media(max-width:560px){.add{grid-template-columns:minmax(0,1fr) auto}.add #f_text{grid-column:1/-1;grid-row:2}
+  li{grid-template-columns:60px minmax(0,1fr)}.x{grid-column:2}}
+</style>
+</head>
+<body>
+<main id="app"></main>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script>
+{
+/* ===== 설정: 여기만 바꾸면 됩니다 ===== */
+const CONFIG = {
+  SUPABASE_URL: "https://bzkctdgigdzivsvwcddn.supabase.co",       // 예: https://abcd1234.supabase.co
+  SUPABASE_ANON_KEY: "sb_publishable_rnF7VEp9ALTY6GNl4fiFrg_-E2MAvqs",  // publishable 키
+  POLL_SEC: 30
+};
+/* ===================================== */
+const $ = s => document.querySelector(s);
+const esc = v => String(v ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const store = { get(k){try{return localStorage.getItem(k)||""}catch(e){return ""}}, set(k,v){try{localStorage.setItem(k,v)}catch(e){}} };
+const pad = n => String(n).padStart(2,"0");
+const ymd = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+const WD = ["일","월","화","수","목","금","토"];
+CONFIG.SUPABASE_URL = (u => { u = (u||"").trim(); if (!u) return "";
+  const m = u.match(/supabase\.com\/dashboard\/project\/([a-z0-9]+)/i); if (m) return `https://${m[1]}.supabase.co`;
+  try { return new URL(u.startsWith("http") ? u : "https://" + u).origin; } catch(e){ return u; } })(CONFIG.SUPABASE_URL);
+const VIEW = true; // 노션용 보기 전용 페이지
+const DEMO = !CONFIG.SUPABASE_URL || !CONFIG.SUPABASE_ANON_KEY || !window.supabase;
+const now = new Date();
+const st = { y: now.getFullYear(), m: now.getMonth(), q: "" };
+let db = null, rows = [], editId = null, delId = null, newId = null;
+
+let demo = [
+  {id:"1",log_date:"2026-11-17",content:"AI 통합으로 진행되는 첫 일정 소재명 AI1 으로 변경",author:"조현주",created_at:"2"},
+  {id:"2",log_date:"2026-11-17",content:"기존 김상엽 → (주)기업특판사업단으로 변경 후 업로드",author:"조현주",created_at:"1"}
+];
+
+const api = {
+  async list(){
+    const from = `${st.y}-${pad(st.m+1)}-01`, to = ymd(new Date(st.y, st.m+1, 1));
+    if (DEMO) return demo.filter(r => r.log_date >= from && r.log_date < to)
+      .sort((a,b)=>b.log_date.localeCompare(a.log_date)||String(b.created_at).localeCompare(String(a.created_at)));
+    const { data, error } = await db.from("ad_logs").select("*").gte("log_date",from).lt("log_date",to)
+      .order("log_date",{ascending:false}).order("created_at",{ascending:false});
+    if (error) throw error; return data;
+  },
+  async add(r){ if (DEMO){ r.id = String(Date.now()); r.created_at = r.id; demo.push(r); return r; }
+    const { data, error } = await db.from("ad_logs").insert(r).select().single(); if (error) throw error; return data; },
+  async update(id, r){ if (DEMO){ Object.assign(demo.find(x=>x.id===id), r); return; }
+    const { error } = await db.from("ad_logs").update(r).eq("id",id); if (error) throw error; },
+  async remove(id){ if (DEMO){ demo = demo.filter(x=>x.id!==id); return; }
+    const { error } = await db.from("ad_logs").delete().eq("id",id); if (error) throw error; },
+  async check(code){
+    const c = window.supabase.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_ANON_KEY, {global:{headers:{"x-team-key":code}}});
+    const { data, error } = await c.rpc("team_key_ok"); if (error) throw error; return data === true ? c : null;
+  }
+};
+
+function shell(){
+  $("#app").innerHTML = `
+    <h1>광고 이슈 기록 ${VIEW ? `<a class="go" href="${esc(new URL("./", location.href).href)}" target="_blank" rel="noopener">작성하러 가기 ↗</a>`
+      : `<label>작성자 <input id="author" placeholder="이름" value="${esc(store.get("adlog_author"))}"></label>`}</h1>
+    ${DEMO ? `<div class="demo">데모 모드: 저장되지 않습니다. README대로 연결하면 팀 공용이 됩니다.</div>` : ""}
+    ${VIEW ? "" : `<form class="add" id="f" autocomplete="off">
+      <input type="date" id="f_date" aria-label="날짜" required>
+      <input id="f_text" placeholder="이슈 한 줄 — 예: 소재명 AI1으로 변경" aria-label="내용" required>
+      <button type="button" id="cancel" hidden>취소</button>
+      <button class="primary" id="save">추가</button>
+    </form>
+    <div class="msg" id="msg"></div>`}
+    <div class="bar">
+      <button class="nav" id="prev" aria-label="이전 달">‹</button><b id="mlabel"></b><button class="nav" id="next" aria-label="다음 달">›</button>
+      <input id="fq" type="search" placeholder="검색"><span id="count"></span>
+    </div>
+    <ul id="list"></ul>`;
+  if (!VIEW) resetForm(); bind();
+}
+
+function resetForm(){
+  editId = null; $("#f").reset(); $("#f_date").value = ymd(new Date());
+  $("#save").textContent = "추가"; $("#cancel").hidden = true;
+}
+
+function render(){
+  $("#mlabel").textContent = `${st.y}. ${st.m+1}월`;
+  const q = st.q.trim().toLowerCase();
+  const list = rows.filter(r => !q || (r.content + " " + (r.author||"")).toLowerCase().includes(q));
+  $("#count").textContent = `${list.length}건`;
+  let prev = "";
+  $("#list").innerHTML = list.length ? list.map(r => {
+    const first = r.log_date !== prev; prev = r.log_date;
+    const dt = new Date(r.log_date + "T00:00:00");
+    return `<li class="${first?"first":"cont"} ${r.id===newId?"new":""}">
+      <span class="d">${dt.getMonth()+1}/${dt.getDate()}<small>${WD[dt.getDay()]}</small></span>
+      <span class="t">${esc(r.content)}${r.author?`<em>${esc(r.author)}</em>`:""}</span>
+      ${VIEW ? "" : `<span class="x"><button class="sm" data-act="edit" data-id="${esc(r.id)}">수정</button><button class="sm ${delId===r.id?"warn":""}" data-act="del" data-id="${esc(r.id)}">${delId===r.id?"삭제?":"삭제"}</button></span>`}
+    </li>`;
+  }).join("") : `<li class="empty">${rows.length ? "검색 결과가 없습니다." : "이 달의 기록이 없습니다."}</li>`;
+}
+
+async function load(){
+  $("#mlabel").textContent = `${st.y}. ${st.m+1}월`;
+  try { rows = await api.list(); render(); }
+  catch(e){ $("#count").textContent = "불러오기 실패: " + (e.message || e); }
+}
+
+function bind(){
+  const mv = k => { const d = new Date(st.y, st.m+k, 1); st.y = d.getFullYear(); st.m = d.getMonth(); load(); };
+  $("#prev").onclick = () => mv(-1); $("#next").onclick = () => mv(1);
+  $("#fq").oninput = e => { st.q = e.target.value; render(); };
+  if (!DEMO){
+    setInterval(() => { if (!document.hidden && !editId) load(); }, CONFIG.POLL_SEC*1000);
+    document.addEventListener("visibilitychange", () => { if (!document.hidden) load(); });
+  }
+  if (VIEW) return;
+  $("#author").addEventListener("change", e => store.set("adlog_author", e.target.value.trim()));
+  $("#f").addEventListener("submit", async e => {
+    e.preventDefault();
+    const r = { log_date: $("#f_date").value, content: $("#f_text").value.trim() };
+    if (!r.content) return;
+    $("#save").disabled = true; $("#msg").textContent = "";
+    try {
+      if (editId){ await api.update(editId, r); newId = editId; }
+      else { r.author = $("#author").value.trim() || null; const a = await api.add(r); newId = a.id; }
+      const [y,m] = r.log_date.split("-").map(Number); st.y = y; st.m = m-1;
+      const keepDate = $("#f_date").value; resetForm(); $("#f_date").value = keepDate; $("#f_text").focus();
+      await load();
+    } catch(err){ $("#msg").textContent = "저장 실패: " + (err.message || err); }
+    $("#save").disabled = false;
+  });
+  $("#cancel").onclick = () => resetForm();
+  $("#list").addEventListener("click", async e => {
+    const b = e.target.closest("button[data-act]"); if (!b) return;
+    const r = rows.find(x => String(x.id) === b.dataset.id); if (!r) return;
+    if (b.dataset.act === "edit"){
+      editId = r.id; $("#f_date").value = r.log_date; $("#f_text").value = r.content;
+      $("#save").textContent = "저장"; $("#cancel").hidden = false; $("#f_text").focus();
+    } else {
+      if (delId !== r.id){ delId = r.id; render(); setTimeout(() => { if (delId === r.id){ delId = null; render(); } }, 4000); return; }
+      delId = null;
+      try { await api.remove(r.id); await load(); } catch(err){ $("#msg").textContent = "삭제 실패: " + (err.message||err); }
+    }
+  });
+}
+
+function gate(msg){
+  $("#app").innerHTML = `<form class="gate" id="g"><h2>광고 이슈 기록</h2><p>팀 코드를 입력하세요. 기기마다 처음 한 번만 입력합니다.</p>
+    <input id="code" type="password" placeholder="팀 코드" required><div class="err">${esc(msg||"")}</div>
+    <button class="primary">들어가기</button></form>`;
+  $("#g").addEventListener("submit", async e => {
+    e.preventDefault(); const code = $("#code").value.trim();
+    try { const c = await api.check(code); if (!c) return gate("팀 코드가 맞지 않습니다.");
+      store.set("adlog_team", code); db = c; shell(); load(); }
+    catch(err){ gate("연결 실패: " + (err.message || err)); }
+  });
+}
+
+(async () => {
+  if (DEMO){ shell(); load(); return; }
+  const saved = store.get("adlog_team");
+  if (saved){ try { const c = await api.check(saved); if (c){ db = c; shell(); load(); return; } } catch(e){} }
+  gate();
+})();
+}
+</script>
+</body>
+</html>
